@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThermalSplat: Generalizable Pose-Free Gaussian Splatting for Sparse-View Thermal 3D Reconstruction</title>
+<meta name="description" content="ThermalSplat is the first generalizable, feed-forward Gaussian splatting framework that reconstructs 3D scenes directly from sparse, unposed thermal images — no camera poses, no RGB guidance, no per-scene training.">
+<meta property="og:title" content="ThermalSplat: Generalizable Pose-Free Gaussian Splatting for Sparse-View Thermal 3D Reconstruction">
+<meta property="og:description" content="Reconstructing thermal 3D scenes from two unposed images in a single 80 ms feed-forward pass.">
+<meta property="og:image" content="assets/teaser.png">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf8f6;
+    --surface: #ffffff;
+    --ink: #1c1917;
+    --ink-soft: #57534e;
+    --ink-faint: #8a837c;
+    --line: #e9e4de;
+    --accent: #e8570f;
+    --accent-deep: #b12a90;
+    --accent-dark: #3b0f4f;
+    --accent-soft: #fff3ea;
+    --gradient: linear-gradient(100deg, #3b0f4f 0%, #b12a90 45%, #e8570f 80%, #fca636 100%);
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(28, 25, 23, .05), 0 8px 28px -12px rgba(28, 25, 23, .14);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .top-strip { height: 5px; background: var(--gradient); }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- hero ---------- */
+  header.hero { text-align: center; padding: 72px 0 8px; position: relative; }
+  .venue-chip {
+    display: inline-block; font-size: 13px; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: #fff; background: var(--gradient);
+    padding: 7px 18px; border-radius: 999px; margin-bottom: 26px;
+  }
+  h1 {
+    font-size: clamp(40px, 6vw, 64px); font-weight: 800; letter-spacing: -0.03em;
+    line-height: 1.05; margin-bottom: 14px;
+  }
+  h1 .grad {
+    background: var(--gradient); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .subtitle {
+    font-size: clamp(17px, 2.4vw, 21px); color: var(--ink-soft); font-weight: 500;
+    max-width: 760px; margin: 0 auto 30px;
+  }
+  .authors { font-size: 17.5px; margin-bottom: 6px; }
+  .authors a { color: var(--ink); text-decoration: none; border-bottom: 1px dotted #c9c2ba; }
+  .authors a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .authors sup { color: var(--ink-faint); font-size: 12px; }
+  .affil { font-size: 15px; color: var(--ink-faint); margin-bottom: 34px; }
+  .affil sup { font-size: 11px; }
+
+  .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 40px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; text-decoration: none;
+    padding: 11px 22px; border-radius: 999px;
+    background: var(--surface); color: var(--ink);
+    border: 1.5px solid var(--line);
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .btn svg { width: 17px; height: 17px; flex: none; }
+  .btn:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: #d8d0c8; }
+  .btn.primary { background: var(--gradient); color: #fff; border: none; }
+  .btn.disabled { opacity: .45; pointer-events: none; }
+  .btn.disabled::after { content: 'soon'; font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; background: #f1ece6; color: var(--ink-faint);
+    padding: 2px 7px; border-radius: 999px; }
+
+  /* ---------- figures ---------- */
+  figure { margin: 0 0 14px; }
+  figure img {
+    width: 100%; display: block; border-radius: var(--radius);
+    border: 1px solid var(--line); box-shadow: var(--shadow); background: #fff;
+  }
+  figure img.flat { border-radius: 8px; }
+  figcaption { font-size: 14px; color: var(--ink-soft); max-width: 860px; margin: 10px auto 0; }
+  figcaption b { color: var(--ink); }
+
+  /* ---------- sections ---------- */
+  section { padding: 40px 0 8px; }
+  .kicker {
+    font-size: 12.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 8px;
+  }
+  h2 { font-size: clamp(24px, 3.4vw, 32px); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 18px; }
+  h2.center, .kicker.center { text-align: center; }
+  p.lede { font-size: 16.5px; color: var(--ink-soft); }
+  p.lede b, p.lede strong { color: var(--ink); }
+
+  /* ---------- feature cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 22px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 24px 22px; box-shadow: var(--shadow);
+  }
+  .card .icon {
+    width: 40px; height: 40px; border-radius: 11px; background: var(--accent-soft);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 14px;
+  }
+  .card .icon svg { width: 21px; height: 21px; stroke: var(--accent); }
+  .card h3 { font-size: 16.5px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.01em; }
+  .card p { font-size: 14px; color: var(--ink-soft); }
+
+  /* ---------- stat tiles ---------- */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 26px 0 8px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px 16px; text-align: center; box-shadow: var(--shadow);
+  }
+  .stat .num {
+    font-size: clamp(26px, 3.6vw, 34px); font-weight: 800; letter-spacing: -0.02em;
+    background: var(--gradient); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .stat .lbl { font-size: 12.5px; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .07em; margin-top: 4px; }
+
+  /* ---------- tables ---------- */
+  .table-scroll { overflow-x: auto; margin: 18px 0 6px; border-radius: var(--radius); }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 14.5px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; box-shadow: var(--shadow); white-space: nowrap;
+  }
+  th, td { padding: 10px 16px; text-align: center; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th {
+    font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-faint); border-bottom: 1.5px solid var(--line); background: #fdfcfa;
+  }
+  tbody tr { border-bottom: 1px solid #f2eee9; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #fdfaf7; }
+  tr.block-start td { border-top: 2px solid var(--line); }
+  tr.ours { background: var(--accent-soft); }
+  tr.ours:hover { background: #ffeee1; }
+  tr.ours td { font-weight: 700; }
+  td.best { font-weight: 700; }
+  .tbl-note { font-size: 13px; color: var(--ink-faint); margin: 8px 2px 0; }
+  .tbl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+
+  /* ---------- bibtex ---------- */
+  .bibtex {
+    position: relative; background: #231f2e; color: #e8e2f0; border-radius: var(--radius);
+    padding: 22px 24px; font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    line-height: 1.7; overflow-x: auto; box-shadow: var(--shadow);
+  }
+  .bibtex .copy-btn {
+    position: absolute; top: 12px; right: 12px;
+    font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+    background: rgba(255,255,255,.1); color: #e8e2f0; border: 1px solid rgba(255,255,255,.18);
+    padding: 6px 13px; border-radius: 8px; cursor: pointer; transition: background .15s ease;
+  }
+  .bibtex .copy-btn:hover { background: rgba(255,255,255,.2); }
+
+  /* ---------- footer ---------- */
+  footer {
+    margin-top: 72px; border-top: 1px solid var(--line);
+    padding: 36px 0 48px; text-align: center;
+  }
+  footer .logos { display: flex; justify-content: center; align-items: center; gap: 28px; margin-bottom: 18px; }
+  footer .logos img { height: 40px; width: auto; opacity: .85; }
+  footer p { font-size: 13.5px; color: var(--ink-faint); max-width: 640px; margin: 0 auto 6px; }
+  footer a { color: var(--ink-soft); }
+
+  @media (max-width: 760px) {
+    .cards, .stats, .tbl-grid { grid-template-columns: 1fr; }
+    header.hero { padding-top: 52px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="top-strip"></div>
+<div class="wrap">
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="venue-chip">WACV&nbsp;2027</div>
+    <h1><span class="grad">ThermalSplat</span></h1>
+    <p class="subtitle">Generalizable Pose-Free Gaussian Splatting for Sparse-View Thermal 3D Reconstruction</p>
+
+    <!-- TODO: replace placeholder author names and links -->
+    <div class="authors">
+      <a href="#">Prasanna S</a><sup>1</sup>,&nbsp;
+      <a href="#">Gopi Raju Matta</a><sup>1</sup>,&nbsp;
+      <a href="#">Venumuri Divya Madhuri</a><sup>1</sup>,&nbsp;
+      <a href="#">Kaushik Mitra</a><sup>1</sup>
+    </div>
+    <div class="affil"><sup>1</sup>Indian Institute of Technology Madras</div>
+
+    <div class="btn-row">
+      <a class="btn primary" href="assets/paper.pdf">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Paper
+      </a>
+      <a class="btn disabled" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        Code
+      </a>
+      <a class="btn disabled" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Video
+      </a>
+      <a class="btn disabled" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        Dataset
+      </a>
+    </div>
+  </header>
+
+  <!-- ================= TEASER ================= -->
+  <figure>
+    <img src="assets/teaser.png" alt="ThermalSplat reconstructions versus PhysIR baseline and ground truth across three thermal scenes">
+  </figure>
+  <figcaption style="text-align:center; margin-bottom: 8px;">
+    <b>ThermalSplat</b> reconstructs sharp thermal 3D scenes from only <b>two unposed images</b> in a single feed-forward pass.
+    Scene-specific optimization methods such as PhysIR collapse under this sparse regime, while our reconstructions remain faithful to the ground truth.
+  </figcaption>
+
+  <!-- ================= WHY ================= -->
+  <section id="why">
+    <div class="kicker center">Why ThermalSplat?</div>
+    <div class="cards">
+      <div class="card">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
+        <h3>Pose-Free &amp; Feed-Forward</h3>
+        <p>Reconstructs 3D scenes from as few as two unposed thermal images in a single 80&nbsp;ms forward pass — no camera poses, no RGB guidance, no per-scene optimization.</p>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v8"/><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5S12 2 12 2 9.5 6.9 8 9.5 5 13 5 15a7 7 0 0 0 7 7z"/></svg>
+        </div>
+        <h3>Thermal-Specific Supervision</h3>
+        <p>A boundary structure loss preserves sharp temperature discontinuities while a soft census loss enforces brightness-invariant local structure — tackling low texture and view-dependent emissivity head on.</p>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </div>
+        <h3>Generalizable by Design</h3>
+        <p>Trained on an aggregated corpus of five public thermal datasets spanning indoor, outdoor, and aerial scenes — it reconstructs entirely unseen scenes in one pass, with no fine-tuning.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ABSTRACT ================= -->
+  <section id="abstract">
+    <div class="kicker">Abstract</div>
+    <p class="lede">
+      Thermal infrared imaging is vital for applications like search-and-rescue and autonomous navigation, yet translating
+      it into 3D scene representations remains a critical bottleneck. The low-texture nature and view-dependent emissivity
+      of thermal images cause standard pose estimators to fail catastrophically, collapsing standard 3D Gaussian Splatting
+      pipelines under sparse-view constraints. Furthermore, existing thermal reconstruction methods rely heavily on dense
+      capture and computationally expensive per-scene optimization — and critically, many depend on aligned RGB-thermal
+      datasets to obtain reliable camera poses and initial point clouds, rendering them unusable in purely thermal, unposed
+      environments. To break this bottleneck, we present <b>ThermalSplat</b>, the first generalizable, feed-forward Gaussian
+      splatting framework that reconstructs 3D scenes directly from sparse thermal images <b>without requiring known camera
+      poses, RGB guidance, or per-scene training</b>. We overcome thermal-specific challenges using a soft census loss for
+      brightness-invariant structural matching and a boundary structure loss to explicitly supervise temperature
+      discontinuities. Trained on an aggregated multi-source dataset, ThermalSplat synthesizes sharp reconstructions of
+      unseen scenes in a single feed-forward pass. Extensive experiments demonstrate that ThermalSplat holds a strict
+      advantage over scene-specific thermal splatting methods in the sparse regime, and achieves superior perceptual
+      fidelity even against baselines operating under their ideal dense capture settings. By eliminating the need for
+      computationally expensive per-scene optimization, ThermalSplat offers an efficient and generalizable approach to
+      thermal 3D reconstruction.
+    </p>
+  </section>
+
+  <!-- ================= PIPELINE ================= -->
+  <section id="pipeline">
+    <div class="kicker">Method</div>
+    <h2>The ThermalSplat Pipeline</h2>
+    <figure>
+      <img class="flat" src="assets/pipeline.png" alt="Overview of the ThermalSplat framework">
+      <figcaption>
+        <b>Overview.</b> Sparse unposed thermal context views undergo thermal-specific preprocessing before being tokenized
+        by a Vision Transformer encoder and processed by a masked decoder. Three specialized heads regress relative camera
+        poses, predict dense depth maps, and predict per-pixel 3D Gaussian parameters, which are unprojected and rendered
+        into novel target views via differentiable rasterization in a single feed-forward pass. End-to-end training is
+        supervised by a photometric loss augmented with two thermal-adapted structural losses: a boundary structure loss
+        (&#8466;<sub>boundary</sub>) that preserves critical temperature discontinuities, and a soft census loss
+        (&#8466;<sub>census</sub>) for brightness-invariant local intensity matching.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= RESULTS ================= -->
+  <section id="results">
+    <div class="kicker">Experiments</div>
+    <h2>Quantitative Results</h2>
+    <p class="lede">
+      Evaluated on six held-out thermal scenes — no training and test sequences share a capture session, so every metric
+      measures genuine generalization. ThermalSplat operates strictly on <b>two unposed input views</b>.
+    </p>
+
+    <div class="stats">
+      <div class="stat"><div class="num">25.55</div><div class="lbl">PSNR &uarr;</div></div>
+      <div class="stat"><div class="num">0.828</div><div class="lbl">SSIM &uarr;</div></div>
+      <div class="stat"><div class="num">0.181</div><div class="lbl">LPIPS &darr;</div></div>
+      <div class="stat"><div class="num">80 ms</div><div class="lbl">Inference</div></div>
+    </div>
+
+    <h3 style="font-size:18px; font-weight:700; margin:30px 0 4px;">vs. scene-specific thermal optimization methods</h3>
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Method</th><th>Capture</th><th>PSNR &uarr;</th><th>SSIM &uarr;</th><th>LPIPS &darr;</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Thermal3DGS</td><td>Dense (ideal)</td><td>25.14</td><td>0.838</td><td>0.253</td></tr>
+        <tr><td>ThermalGaussian*</td><td>Dense (ideal)</td><td>26.02</td><td>0.869</td><td>0.241</td></tr>
+        <tr><td>PhysIR</td><td>Dense (ideal)</td><td><b>26.77</b></td><td><b>0.869</b></td><td>0.277</td></tr>
+        <tr class="block-start"><td>Thermal3DGS</td><td>Sparse (2-view)</td><td>11.89</td><td>0.489</td><td>0.547</td></tr>
+        <tr><td>ThermalGaussian*</td><td>Sparse (2-view)</td><td>15.16</td><td>0.643</td><td>0.458</td></tr>
+        <tr><td>PhysIR</td><td>Sparse (2-view)</td><td>19.03</td><td>0.715</td><td>0.419</td></tr>
+        <tr class="ours"><td>ThermalSplat (Ours)</td><td>Sparse (2-view)</td><td>24.96</td><td>0.819</td><td>0.209</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="tbl-note">Mean over five held-out scenes (UAV6 excluded — it lacks the RGB data ThermalGaussian requires). Under extreme sparsity, per-scene optimization collapses, while ThermalSplat rivals methods running in their ideal dense capture setting.</p>
+
+    <h3 style="font-size:18px; font-weight:700; margin:30px 0 4px;">vs. generalizable RGB baselines</h3>
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Method</th><th>PSNR &uarr;</th><th>SSIM &uarr;</th><th>LPIPS &darr;</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>MVSplat</td><td>8.15</td><td>0.148</td><td>0.747</td></tr>
+        <tr><td>MVSplat<sup>&dagger;</sup></td><td>16.97</td><td>0.602</td><td>0.456</td></tr>
+        <tr><td>SPFSplat</td><td>18.46</td><td>0.651</td><td>0.405</td></tr>
+        <tr><td>SPFSplat<sup>&dagger;</sup></td><td>19.30</td><td>0.700</td><td>0.426</td></tr>
+        <tr><td>NAS3R</td><td>23.44</td><td>0.768</td><td>0.240</td></tr>
+        <tr><td>NAS3R<sup>&dagger;</sup></td><td>24.34</td><td>0.785</td><td>0.220</td></tr>
+        <tr class="ours"><td>ThermalSplat (Ours)</td><td>25.55</td><td>0.828</td><td>0.181</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="tbl-note">Mean over six held-out scenes. <sup>&dagger;</sup> denotes RGB-pretrained models explicitly fine-tuned on our aggregated thermal corpus — ThermalSplat still leads, confirming the value of thermal-adapted structural supervision beyond naive domain transfer.</p>
+
+    <div class="tbl-grid" style="margin-top:30px;">
+      <div>
+        <h3 style="font-size:18px; font-weight:700; margin-bottom:4px;">Two-view pose estimation</h3>
+        <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Method</th><th>5&deg;</th><th>10&deg;</th><th>20&deg;</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>NAS3R</td><td>9.5</td><td>21.3</td><td>35.8</td></tr>
+            <tr><td>NAS3R<sup>&dagger;</sup></td><td>7.7</td><td>21.5</td><td>38.6</td></tr>
+            <tr class="ours"><td>ThermalSplat (Ours)</td><td>10.4</td><td>23.8</td><td>39.7</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <p class="tbl-note">Overall pose AUC (%) at 5&deg;, 10&deg;, and 20&deg; error thresholds.</p>
+      </div>
+      <div>
+        <h3 style="font-size:18px; font-weight:700; margin-bottom:4px;">Reconstruction time per scene</h3>
+        <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Method</th><th>Paradigm</th><th>Time &darr;</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Thermal3DGS</td><td>Per-scene opt.</td><td>~15 min</td></tr>
+            <tr><td>ThermalGaussian OMMG</td><td>Per-scene opt.</td><td>~25 min</td></tr>
+            <tr><td>PhysIR</td><td>Per-scene opt.</td><td>~15 min</td></tr>
+            <tr class="ours"><td>ThermalSplat (Ours)</td><td>Feed-forward</td><td>80 ms</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <p class="tbl-note">A single 80-millisecond forward pass replaces 15–25 minutes of per-scene training.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= QUALITATIVE ================= -->
+  <section id="qualitative">
+    <div class="kicker">Experiments</div>
+    <h2>Qualitative Comparison</h2>
+    <figure>
+      <img src="assets/qualitative.png" alt="Qualitative comparison under the sparse two-view setting against Thermal3DGS, ThermalGaussian OMMG, and PhysIR">
+      <figcaption>
+        <b>Novel view synthesis under the sparse two-view setting.</b> Restricted to highly sparse inputs, scene-specific
+        optimization baselines suffer catastrophic geometry collapse — producing severe uninterpretable ghosting or entirely
+        black outputs — whereas ThermalSplat maintains sharp boundary delineation and structural integrity, rivaling the
+        visual fidelity these baselines achieve only under ideal dense captures.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= ABLATION ================= -->
+  <section id="ablation">
+    <div class="kicker">Analysis</div>
+    <h2>Ablation Study</h2>
+    <div class="tbl-grid">
+      <div>
+        <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Variant</th><th>PSNR &uarr;</th><th>SSIM &uarr;</th><th>LPIPS &darr;</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Naive transfer (zero-shot)</td><td>23.44</td><td>0.768</td><td>0.240</td></tr>
+            <tr><td>Photometric only</td><td>24.34</td><td>0.785</td><td>0.220</td></tr>
+            <tr><td>+ Census loss</td><td>25.15</td><td>0.810</td><td>0.192</td></tr>
+            <tr><td>+ Boundary loss</td><td>25.46</td><td>0.822</td><td>0.183</td></tr>
+            <tr class="ours"><td>Boundary + Census (full)</td><td>25.55</td><td>0.828</td><td>0.181</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <p class="tbl-note">The two structural losses are complementary: the boundary loss supervises the location of temperature boundaries, while the census loss enforces brightness-invariant local structure. Their combination yields the best reconstruction quality.</p>
+      </div>
+      <div>
+        <p class="lede" style="font-size:15px;">
+          Qualitative error maps (&#916;GT) confirm that perceptual accuracy is maximized and structural artifacts are
+          minimized only when <b>both</b> complementary loss components are active during training — partial configurations
+          exhibit boundary blurring and structural artifacts.
+        </p>
+      </div>
+    </div>
+    <figure style="margin-top:22px;">
+      <img src="assets/ablation.jpg" alt="Qualitative ablation study showing novel view synthesis and error maps">
+      <figcaption>
+        <b>Qualitative ablation</b> with novel view synthesis and corresponding error maps (&#916;GT). The full ThermalSplat
+        model (second from right) minimizes structural artifacts and boundary blurring compared to partial configurations,
+        confirming the synergy between the boundary structure and soft census losses.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= BIBTEX ================= -->
+  <section id="bibtex">
+    <div class="kicker">Citation</div>
+    <h2>BibTeX</h2>
+    <div class="bibtex">
+      <button class="copy-btn" onclick="copyBibtex(this)">Copy</button>
+<pre id="bibtex-src">@inproceedings{thermalsplat2027,
+  title     = {ThermalSplat: Generalizable Pose-Free Gaussian Splatting
+               for Sparse-View Thermal 3D Reconstruction},
+  author    = {Anonymous},
+  booktitle = {Proceedings of the IEEE/CVF Winter Conference on
+               Applications of Computer Vision (WACV)},
+  year      = {2027}
+}</pre>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  <footer>
+    <div class="logos">
+      <img src="assets/logo_iitm.png" alt="IIT Madras logo">
+      <img src="assets/logo_cilab.png" alt="Computational Imaging Lab logo">
+    </div>
+    <p><!-- TODO: contact email -->Contact: your-email@iitm.ac.in</p>
+    <p>&copy; 2026 ThermalSplat Authors. Website design inspired by the
+       <a href="https://gopirajumatta.github.io/PRISM3D/">PRISM3D</a> project page.</p>
+  </footer>
+
+</div>
+
+<script>
+function copyBibtex(btn) {
+  const text = document.getElementById('bibtex-src').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+  });
+}
+</script>
+</body>
+</html>
